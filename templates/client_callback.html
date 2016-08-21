@@ -12,7 +12,7 @@ https://github.com/oauth-io/oauthd/blob/bdf690138999bf228807045f03a4c91525800ad6
     document.location.href = "{{ redirect_uri }}#oauthio=" + encodeURIComponent(msg);
   {% endif %}
 {% else %}
-  {% if user_agent.startswith('IE') %}
+  {% if is_ie %}
     function createCookie(name, value) {
       var date = new Date();
       date.setTime(date.getTime() + 1200 * 1000);
@@ -27,7 +27,6 @@ https://github.com/oauth-io/oauthd/blob/bdf690138999bf228807045f03a4c91525800ad6
     var opener = window.opener || window.parent.window.opener;
 
     if (opener){
-      console.log('Posting message:', msg, "{{ origin }}");
       opener.postMessage(msg, "{{ origin }}");
     }
     window.close();
