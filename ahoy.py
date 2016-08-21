@@ -1,12 +1,10 @@
 import json
-import os
 import re
 import urllib.parse
 
 
 import redis
 from requests_oauthlib import OAuth1Session
-import yaml
 
 import flask
 from flask import Flask, request
@@ -31,7 +29,6 @@ def get_origin(request):
               or request.args.get('d')
               or request.args.get('redirect_uri')
              )
-    origin_parts = urllib.parse.urlsplit(origin)
     return format_url('{scheme}://{netloc}/', origin)
 
 def _serialize(obj):
@@ -53,7 +50,7 @@ class Client:
         self.id = app_id
         self.key = key
         self.secret = secret
-        for k,v in extra.items():
+        for k, v in extra.items():
             setattr(self, k, v)
 
     def __repr__(self):
@@ -89,14 +86,14 @@ class Client:
     @classmethod
     def all(cls, as_dict=False):
         def _clients():
-            for k,v in r.hgetall(cls._redis_key).items():
+            for k, v in r.hgetall(cls._redis_key).items():
                 key = k.decode('utf8')
                 val = cls(key, **_deserialize(v))
                 yield key, val
         if as_dict:
             return dict(_clients())
         else:
-            return [v for k,v in _clients()]
+            return [v for k, v in _clients()]
 
 
 class Sites:
