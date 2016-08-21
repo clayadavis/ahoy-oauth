@@ -1,0 +1,42 @@
+{# https://github.com/oauth-io/oauthd/blob/bdf690138999bf228807045f03a4c91525800ad6/src/presentationLayer/auth/index.coffee#L110-L159 #}
+<!DOCTYPE html>
+<html><head><script>(function() {
+    "use strict";
+    var msg={{ body | tojson | tojson}};
+{% if redirect_uri %}
+  {% if '#' in redirect_uri %}
+    document.location.href = "{{ redirect_uri }}&oauthio=" + encodeURIComponent(msg);
+  {% else %}
+    document.location.href = "{{ redirect_uri }}#oauthio=" + encodeURIComponent(msg);
+  {% endif %}
+{% else %}
+  {% if user_agent.startswith('IE') %}
+    function createCookie(name, value) {
+      var date = new Date();
+      date.setTime(date.getTime() + 1200 * 1000);
+      var expires = "; expires="+date.toGMTString();
+      document.cookie = name+"="+value+expires+"; path=/";
+    }
+    createCookie("oauthio_last",encodeURIComponent(msg));
+  {% elif chrome_ext %}
+    chrome.runtime.sendMessage("{{ chrome_ext }}", {data:msg});
+    window.close();
+  {% else %}
+    var opener = window.opener || window.parent.window.opener;
+
+    if (opener){
+      console.log('Posting message:', msg, "{{ origin }}");
+      opener.postMessage(msg, "{{ origin }}");
+    }
+    window.close();
+  {% endif %}
+{% endif %}
+})();</script></head>
+<body style="text-align:center">
+  <div style="display:inline-block; padding: 4px; border: 1px solid black">
+    Your browser does not support popup. Please open this site with your default browser.
+    <br>
+    <a href="{{ origin }}">{{ origin }}</a>
+  </div>
+</body>
+</html>
