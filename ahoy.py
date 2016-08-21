@@ -34,19 +34,69 @@ def get_origin(request):
     origin_parts = urllib.parse.urlsplit(origin)
     return format_url('{scheme}://{netloc}/', origin)
 
+def _serialize(obj):
+    return json.dumps(obj).encode('utf8')
+
+def _deserialize(obj_str):
+    return json.loads(obj_str.decode('utf8'))
+
 
 # Models
 
 
 class Client:
-    # Temporarily using a file
-    _this_dir = os.path.dirname(__file__)
-    keystore = yaml.load(open(os.path.join(_this_dir, 'clients.yaml')))
-    def __init__(self, app_key):
-        # The app_key is what goes in OAuth.initialize() on the frontend.
-        credentials = self.keystore[app_key]
-        self.key = credentials['key']
-        self.secret = credentials['secret']
+    _redis_key = 'ahoy:clients'
+    def __init__(self, app_id, key, secret, **extra):
+        # The app_id is what goes in OAuth.initialize() on the frontend.
+        # These are required to have
+
+        self.id = app_id
+        self.key = key
+        self.secret = secret
+        for k,v in extra.items():
+            setattr(self, k, v)
+
+    def __repr__(self):
+        return json.dumps(self.to_dict(), indent=2, sort_keys=True)
+
+    def __str__(self):
+        return "<%s '%s'>" % (type(self).__name__, self.id)
+
+    def delete(self):
+        return r.hdel(self._redis_key, self.id)
+
+    def save(self):
+        data = self.to_dict()
+        del data['id']
+        return r.hset(self._redis_key, self.id, _serialize(data))
+
+    def to_dict(self):
+        obj = {}
+        for k in dir(self):
+            if not k.startswith('_'):
+                v = getattr(self, k)
+                if not callable(v):
+                    obj[k] = v
+        return obj
+
+    @classmethod
+    def get(cls, app_id):
+        data = r.hget(cls._redis_key, app_id)
+        if data is None:
+            raise KeyError('Invalid app ID')
+        return cls(app_id, **_deserialize(data))
+
+    @classmethod
+    def all(cls, as_dict=False):
+        def _clients():
+            for k,v in r.hgetall(cls._redis_key).items():
+                key = k.decode('utf8')
+                val = cls(key, **_deserialize(v))
+                yield key, val
+        if as_dict:
+            return dict(_clients())
+        else:
+            return [v for k,v in _clients()]
 
 
 class Sites:
@@ -76,14 +126,6 @@ class Sessions:
     expiry = 600
     key_template = 'ahoy:session:%s'
 
-    @staticmethod
-    def _serialize(obj):
-        return json.dumps(obj).encode('utf8')
-
-    @staticmethod
-    def _deserialize(obj_str):
-        return json.loads(obj_str.decode('utf8'))
-
     @classmethod
     def put(cls, request, request_token):
         opts = json.loads(request.args['opts'])
@@ -97,7 +139,7 @@ class Sessions:
             'resource_owner_secret': request_token['oauth_token_secret'],
             }
 
-        r.setex(key, cls.expiry, cls._serialize(session_data))
+        r.setex(key, cls.expiry, _serialize(session_data))
         return session_data
 
     @classmethod
@@ -106,7 +148,7 @@ class Sessions:
         session_bytes = r.get(key)
         if session_bytes is None:
             raise KeyError('Session invalid or expired')
-        return cls._deserialize(session_bytes)
+        return _deserialize(session_bytes)
 
     @classmethod
     def delete(cls, state):
@@ -147,7 +189,7 @@ def initiate_auth(provider):
     callback_query = urllib.parse.urlencode({'state': state})
     callback_uri = '{scheme}://{host}:{port}/auth?{query}'.format(
         scheme=SCHEME, host=HOST, port=PORT, query=callback_query)
-    client = Client(request.args['k'])
+    client = Client.get(request.args['k'])
     oauth = OAuth1Session(
         client.key,
         client_secret=client.secret,
@@ -173,7 +215,7 @@ def fetch_tokens():
                 'invalid or expired<br/>')
     provider = session_data['provider']
     site = Sites.get(provider)
-    client = Client(session_data['client'])
+    client = Client.get(session_data['client'])
 
     oauth = OAuth1Session(
         client.key,
