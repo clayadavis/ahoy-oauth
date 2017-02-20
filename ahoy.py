@@ -183,9 +183,10 @@ def initiate_auth(provider):
     # TODO: Enforce domain is allowed in /auth/:provider
     opts = json.loads(request.args['opts'])
     state = opts['state']
+    origin = get_origin(request).rstrip('/')
     callback_query = urllib.parse.urlencode({'state': state})
-    callback_uri = '{scheme}://{host}:{port}/auth?{query}'.format(
-        scheme=SCHEME, host=HOST, port=PORT, query=callback_query)
+    callback_uri = '{origin}/auth?{query}'.format(
+            origin=origin, query=callback_query)
     client = Client.get(request.args['k'])
     oauth = OAuth1Session(
         client.key,
