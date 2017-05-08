@@ -12,7 +12,19 @@ from flask_cors import cross_origin
 
 app = Flask(__name__)
 logger = app.logger
-r = redis.StrictRedis()
+
+try:
+    import local_settings
+except ImportError:
+    logger.warn('No local_settings.py found; using default settings')
+    import types
+    local_settings = types.SimpleNamespace()
+
+
+REDIS_HOST = getattr(local_settings, 'REDIS_HOST', 'localhost')
+REDIS_PORT = getattr(local_settings, 'REDIS_PORT', 6379)
+REDIS_DB   = getattr(local_settings, 'REDIS_DB', 0)
+r = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
 
 
 # Utility functions
@@ -184,8 +196,16 @@ def initiate_auth(provider):
     opts = json.loads(request.args['opts'])
     state = opts['state']
     callback_query = urllib.parse.urlencode({'state': state})
-    callback_uri = '{scheme}://{host}:{port}/auth?{query}'.format(
-        scheme=SCHEME, host=HOST, port=PORT, query=callback_query)
+    callback_path = '/auth'
+    try:
+        callback_uri = '{root}{path}?{query}'.format(
+                root=local_settings.CALLBACK_URL_ROOT,
+                path=callback_path,
+                query=callback_query,
+                )
+    except AttributeError:
+        callback_uri = '{scheme}://{host}:{port}/auth?{query}'.format(
+                scheme=SCHEME, host=HOST, port=PORT, query=callback_query)
     client = Client.get(request.args['k'])
     oauth = OAuth1Session(
         client.key,
