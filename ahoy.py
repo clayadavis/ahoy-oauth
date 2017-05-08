@@ -123,7 +123,8 @@ class Sites:
 
     @classmethod
     def all(cls):
-        return [s for s in dir(cls) if isinstance(s, cls.Site)]
+        attrs = [getattr(cls, s) for s in dir(cls)]
+        return [a for a in attrs if isinstance(a, cls.Site)]
 
     twitter = Site('https://api.twitter.com/oauth/request_token',
                    'https://api.twitter.com/oauth/authenticate',
@@ -170,7 +171,7 @@ class Sessions:
 
 @app.route('/')
 def hello_world():
-    return 'Hello, World!'
+    return 'Ahoy!'
 
 
 @app.route('/api/extended-endpoints')
